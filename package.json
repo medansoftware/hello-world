@@ -1,0 +1,46 @@
+{
+  "name": "live-engine-client",
+  "license": "MIT",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [],
+  "author": "Agung Dirgantara <agungmasda29@gmail.com>",
+  "main": "index.js",
+  "scripts": {
+    "dev": "webpack serve",
+    "build": "webpack --config webpack.config.js",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "**/*": "prettier --write --ignore-unknown"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "bootstrap": "^5.3.3",
+    "dotenv": "^16.4.1",
+    "jquery": "^3.7.1",
+    "localforage": "^1.10.0",
+    "mediasoup-client": "^3.7.16",
+    "popper.js": "^1.16.1",
+    "socket.io-client": "^4.7.5",
+    "sweetalert2": "^11.14.0"
+  },
+  "devDependencies": {
+    "@types/jquery": "^3.5.29",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/parser": "^6.19.1",
+    "css-loader": "^6.10.0",
+    "eslint": "^8.56.0",
+    "html-webpack-plugin": "^5.6.0",
+    "husky": "^9.1.5",
+    "lint-staged": "^15.2.10",
+    "prettier": "3.3.3",
+    "style-loader": "^3.3.4",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "webpack": "^5.94.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-middleware": "^7.0.0",
+    "webpack-dev-server": "^4.15.1"
+  }
+}
