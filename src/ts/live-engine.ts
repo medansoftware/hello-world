@@ -64,7 +64,7 @@ export const userStorage = localforage.createInstance({
   storeName: 'user',
 });
 
-const API_URL = 'https://localhost:3000';
+const API_URL = 'https://live-engine.central.my.id';
 
 export const httpAPI = axios.create({
   baseURL: API_URL,
