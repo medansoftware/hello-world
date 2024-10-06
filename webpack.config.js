@@ -36,11 +36,11 @@ module.exports = (env = {}) => {
       ],
     },
     plugins: [
-      new webpack.ProvidePlugin({
-        $: 'jquery',
-        jQuery: 'jquery',
-        Popper: ['popper.js', 'default'],
-      }),
+      // new webpack.ProvidePlugin({
+      //   $: 'jquery',
+      //   jQuery: 'jquery',
+      //   Popper: ['popper.js', 'default'],
+      // }),
       new HtmlWebpackPlugin({
         template: './src/html/index.html',
         filename: 'index.html',
@@ -95,6 +95,7 @@ module.exports = (env = {}) => {
           cert: fs.readFileSync(process.env.SSL_CERT_FILE),
         },
       },
+      static: './public',
       // historyApiFallback: {
       //   rewrites: [{ from: /^\/page/, to: '/page.html' }],
       // },
