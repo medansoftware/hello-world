@@ -1,10 +1,12 @@
+import { Device } from 'mediasoup-client';
 import {
   createVideoElement,
   getLiveRoomDetail,
   liveSocket,
+  roomTransport,
+  sendChatMessage,
   transportConnectHandler,
 } from '@/ts/live-engine';
-import { Device, parseScalabilityMode } from 'mediasoup-client';
 
 $(function () {
   const urlParams = new URLSearchParams(window.location.search);
@@ -13,8 +15,8 @@ $(function () {
 
   // let enableAudio = true;
   // let enableVideo = true;
+
   // let localMediaStream = null;
-  let localRecvTransport = null;
   // let localSendTransport = null;
 
   const loadDevice = async (routerRtpCapabilities) => {
@@ -28,11 +30,11 @@ $(function () {
     }
   };
 
-  const displayParticipantStream = async (id = 'participant', mediaStream) => {
-    const videoElement = $(`#participant-${id}`)[0];
+  const displayParticipantStream = async (uid, mediaStream) => {
+    const videoElement = $(`#participant-${uid}`)[0];
     videoElement.srcObject = mediaStream;
-    console.log({ videoElement, mediaStream }, mediaStream.getTracks());
     liveSocket.emit('resumeConsumers', console.log);
+
     try {
       await videoElement.play();
       console.log('PLAYED');
@@ -41,118 +43,122 @@ $(function () {
     }
   };
 
+  const handleLiveJoin = async (routerRtpCapabilities) => {
+    const initializeRecvTransport = await loadDevice(routerRtpCapabilities);
+
+    // create transport
+    liveSocket.emit(
+      'createWebRtcConnector',
+      { mode: 'recv' },
+      async (recvTransportConnector) => {
+        const recvTransport = initializeRecvTransport.createRecvTransport({
+          id: recvTransportConnector.id,
+          iceCandidates: recvTransportConnector.ice.candidates,
+          iceParameters: recvTransportConnector.ice.parameters,
+          dtlsParameters: recvTransportConnector.dtls.parameters,
+        });
+
+        roomTransport.recv = recvTransport;
+
+        recvTransport.on('connectionstatechange', (connectionstatechange) => {
+          console.log({ connectionstatechange });
+        });
+
+        transportConnectHandler(recvTransport);
+
+        liveSocket.emit('getPublishers', (participants) =>
+          handleGetPublishers(routerRtpCapabilities, participants),
+        );
+      },
+    );
+  };
+
+  const handleGetPublishers = async (routerRtpCapabilities, participants) => {
+    for (let i = 0; i < participants.length; i++) {
+      const participant = participants[i];
+      $('#media-stream-display').append(
+        createVideoElement(`participant-${participant.user.id}`),
+      );
+      const participantStream = new MediaStream();
+
+      participantStream.onaddtrack = (event) => {
+        console.log(`New ${event.track.kind} track added`);
+      };
+
+      console.log({ participantMedia: participant.stream });
+      participant.stream.forEach((participantMedia) => {
+        liveSocket.emit(
+          'createConsumer',
+          {
+            connectorId: roomTransport.recv.id,
+            mediaId: participantMedia.id,
+            rtpCapabilities: routerRtpCapabilities,
+          },
+          async (options) => {
+            const consumer = await roomTransport.recv.consume({
+              id: options.id,
+              kind: options.kind,
+              producerId: options.mediaId,
+              rtpParameters: options.rtpParameters,
+            });
+
+            liveSocket.emit('resumeConsumers', {
+              consumerId: consumer.id,
+            });
+
+            participantStream.addTrack(consumer.track);
+
+            // if (participantStream.getTracks().length === 2) {
+            //   displayParticipantStream(participant.user.id, participantStream);
+            // }
+
+            displayParticipantStream(participant.user.id, participantStream);
+          },
+        );
+      });
+    }
+  };
+
   liveSocket.on('connect', () => {
     if (liveId) {
-      liveSocket.on('getProducers', (producers) => {
-        for (let i = 0; i < producers.length; i++) {
-          const participant = producers[i];
-          console.log({ participant, media: participant.media });
-        }
-      });
-      getLiveRoomDetail(liveId).then((liveRoom) => {
-        // set to title
-        document.title = liveRoom.name;
+      getLiveRoomDetail(liveId).then(
+        (liveRoom) => {
+          // set to title
+          document.title = liveRoom.name;
+          // join to the live
+          liveSocket.emit('join', { liveId }, handleLiveJoin);
 
-        liveSocket.emit('join', { liveId }, async (routerRtpCapabilities) => {
-          console.log({ routerRtpCapabilities });
-          const initializeRecvTransport = await loadDevice(
-            routerRtpCapabilities,
-          );
-
-          // create transport
-          liveSocket.emit(
-            'createWebRtcConnector',
-            { mode: 'recv' },
-            async (recvTransportConnector) => {
-              const recvTransport = initializeRecvTransport.createRecvTransport(
-                {
-                  id: recvTransportConnector.id,
-                  iceCandidates: recvTransportConnector.ice.candidates,
-                  iceParameters: recvTransportConnector.ice.parameters,
-                  dtlsParameters: recvTransportConnector.dtls.parameters,
-                },
-              );
-              localRecvTransport = recvTransport;
-
-              recvTransport.on(
-                'connectionstatechange',
-                (connectionstatechange) => {
-                  console.log({ connectionstatechange });
-                },
-              );
-
-              transportConnectHandler(recvTransport);
-
-              liveSocket.emit('getProducers', async (participants) => {
-                for (let i = 0; i < participants.length; i++) {
-                  const participant = participants[i];
-                  $('#media-stream-display').append(
-                    createVideoElement(`participant-${participant.id}`),
-                  );
-                  const participantStream = new MediaStream();
-
-                  participantStream.onaddtrack = (event) => {
-                    console.log(`New ${event.track.kind} track added`);
-                  };
-
-                  console.log({ participantMedia: participant.media });
-                  participant.media.forEach((participantMedia) => {
-                    liveSocket.emit(
-                      'createConsumer',
-                      {
-                        connectorId: recvTransport.id,
-                        mediaId: participantMedia.id,
-                        rtpCapabilities: routerRtpCapabilities,
-                      },
-                      async (options) => {
-                        console.log({ options });
-                        const consumer = await recvTransport.consume({
-                          id: options.id,
-                          kind: options.kind,
-                          producerId: options.mediaId,
-                          rtpParameters: options.rtpParameters,
-                        });
-
-                        liveSocket.emit('resumeConsumers', {
-                          consumerId: consumer.id,
-                        });
-
-                        // if (consumer.kind === 'video') {
-                        //   const parseSVC = parseScalabilityMode(
-                        //     consumer.rtpParameters.encodings[0].scalabilityMode,
-                        //   );
-                        //   liveSocket.emit('setPreferredLayers', {
-                        //     consumerId: consumer.id,
-                        //     spatialLayer: parseSVC.spatialLayers,
-                        //     temporalLayer: parseSVC.temporalLayers,
-                        //   });
-                        //   console.log({ parseSVC });
-                        // }
-
-                        participantStream.addTrack(consumer.track);
-
-                        consumer.track.onended = () => {
-                          console.log('consumerTrackEnded');
-                        };
-                        if (participantStream.getTracks().length === 2) {
-                          displayParticipantStream(
-                            participant.id,
-                            participantStream,
-                          );
-                        }
-                      },
-                    );
-                  });
-                }
-              });
-            },
-          );
-        });
-      });
+          $('#live-chat-form').on('submit', async function (e) {
+            e.preventDefault();
+            const text = $('input[name="live-chat-text"]');
+            if (text.val().trim().length > 0) {
+              await sendChatMessage(liveId, text.val());
+              text.val('');
+            }
+          });
+        },
+        () => {
+          window.location.href = '/';
+        },
+      );
+    } else {
+      window.location.href = '/';
     }
   });
 
-  liveSocket.on('newMedia', () => {
-    //
+  liveSocket.on('activeSpeaker', (activeSpeaker) => {
+    console.log({ activeSpeaker });
+  });
+
+  liveSocket.on('newMessage', (newMessage) => {
+    console.log({ newMessage });
+  });
+
+  liveSocket.on('streamCreated', (streamCreated) => {
+    console.log({ streamCreated });
+  });
+
+  liveSocket.on('streamDestroyed', (streamDestroyed) => {
+    console.log({ streamDestroyed });
   });
 });

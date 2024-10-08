@@ -5,6 +5,7 @@ import {
   createVideoElement,
   getLiveRoomDetail,
   liveSocket,
+  roomTransport,
   setURLByActiveMedia,
   transportConnectHandler,
   transportProduceHandler,
@@ -19,7 +20,7 @@ $(function () {
   let enableVideo = true;
   let localMediaStream = null;
   // let localRecvTransport = null;
-  let localSendTransport = null;
+  // let localSendTransport = null;
 
   const loadDevice = async (routerRtpCapabilities) => {
     try {
@@ -84,11 +85,11 @@ $(function () {
             for (let i = 0; i < mediaTracks.length; i++) {
               const mediaTrack = mediaTracks[i];
               if (mediaTrack.kind === 'video') {
-                await localSendTransport.produce({
+                await roomTransport.send.produce({
                   track: mediaTrack,
                 });
               } else {
-                await localSendTransport.produce({
+                await roomTransport.send.produce({
                   track: mediaTrack,
                 });
               }
@@ -191,6 +192,10 @@ $(function () {
           liveSocket.on('producerTrace', (producerTrace) => {
             console.log({ producerTrace });
           });
+
+          liveSocket.on('streamCreated', (streamCreated) => {
+            console.log({ streamCreated });
+          });
           // get user media
           getUserMedia({ audio: enableAudio, video: enableVideo }).then(
             (mediaStream) => {
@@ -218,7 +223,7 @@ $(function () {
                           dtlsParameters:
                             sendTransportConnector.dtls.parameters,
                         });
-                      localSendTransport = sendTransport;
+                      roomTransport.send = sendTransport;
 
                       sendTransport.on(
                         'connectionstatechange',

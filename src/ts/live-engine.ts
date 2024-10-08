@@ -3,17 +3,67 @@ import localforage from 'localforage';
 import { types } from 'mediasoup-client';
 import { Manager, Socket } from 'socket.io-client';
 
+export const roomTransport: RoomTransport = {
+  recv: null,
+  send: null,
+};
+
+export type RoomTransport = {
+  recv?: types.Transport<types.AppData> | null;
+  send?: types.Transport<types.AppData> | null;
+};
+
+export type ManageTransportResponse = {
+  success: string | string[];
+  failure: string | string[];
+};
+
+export type StreamPayload = {
+  id: string;
+  kind: types.MediaKind;
+  userId: string;
+  label: string;
+  paused: boolean;
+};
+
+/**
+ * Represents a publisher slot in the room, tracking whether the user is AFK (away from keyboard) and their user ID.
+ */
+export type RoomPublisherSlot = {
+  /**
+   * Whether the user is away from the keyboard.
+   */
+  afk: boolean;
+
+  /**
+   * The unique identifier of the user.
+   */
+  userId: string;
+};
+
 interface ServerToClientEvents {
   connect(): void;
   audioLevels(data: {
     volumes?: { participant: Participant; volume: number }[];
     silence?: boolean;
   }): void;
-  newMedia(data: {
-    kind: types.MediaKind;
-    mediaId: string;
-    participantId: string;
-  }): void;
+  activeSpeaker(data: Pick<StreamPayload, 'id' | 'userId'>): void;
+  streamCreated(data: StreamPayload): void;
+  streamPaused(payload: Pick<StreamPayload, 'id' | 'userId'>): void;
+  streamResumed(payload: Pick<StreamPayload, 'id' | 'userId'>): void;
+  streamDestroyed(payload: Pick<StreamPayload, 'id' | 'userId'>): void;
+  newParticipant(payload: Participant): void;
+  leftParticipant(payload: Participant): void;
+  newMessage(payload: { from: Participant; text: string }): void;
+  newPublisher(payload: Participant): void;
+  guestInvite(payload: { code: string }): void;
+  guestRequest(payload: Participant): void;
+  guestRequestAccepted(payload: { code: string }): void;
+  guestRequestRejected(): void;
+  publisherSlotJoin(payload: Participant): void;
+  publisherSlotLeft(payload: Participant): void;
+  publisherSlotChanged(payload: RoomPublisherSlot): void;
+  closed(): void;
 }
 
 interface ClientToServerEvents {
@@ -51,7 +101,7 @@ interface ClientToServerEvents {
     },
     callback?: (producer: Producer) => void,
   ): void;
-  getProducers(callback?: (participants: Participant[]) => void): void;
+  getPublishers(callback?: (participants: Participant[]) => void): void;
   destroyProducers(
     payload?: { producerId: string | string[] },
     callback?: () => void,
@@ -64,7 +114,7 @@ export const userStorage = localforage.createInstance({
   storeName: 'user',
 });
 
-const API_URL = 'https://live-engine.central.my.id';
+const API_URL = 'https://localhost:3000';
 
 export const httpAPI = axios.create({
   baseURL: API_URL,
@@ -224,6 +274,14 @@ export const getLiveRooms = async () => {
 export const getLiveRoomDetail = async (id: string) => {
   const sendRequest = await httpAPI.get<{ id: string; name: string }>(
     `/live/${id}`,
+  );
+  return sendRequest.data;
+};
+
+export const sendChatMessage = async (id: string, text: string) => {
+  const sendRequest = await httpAPI.post<{ success: boolean }>(
+    `/live/${id}/chat`,
+    { text },
   );
   return sendRequest.data;
 };

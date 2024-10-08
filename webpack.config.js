@@ -2,7 +2,6 @@
 require('dotenv/config');
 const fs = require('node:fs');
 const path = require('node:path');
-const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = (env = {}) => {
@@ -86,7 +85,13 @@ module.exports = (env = {}) => {
       filename: '[contenthash].js',
       path: path.resolve(__dirname, 'dist'),
     },
+    // optimization: {
+    //   splitChunks: {
+    //     chunks: 'all',
+    //   },
+    // },
     devServer: {
+      // port: 9000,
       // SSL options
       server: {
         type: 'https',
@@ -96,9 +101,6 @@ module.exports = (env = {}) => {
         },
       },
       static: './public',
-      // historyApiFallback: {
-      //   rewrites: [{ from: /^\/page/, to: '/page.html' }],
-      // },
     },
   };
 
